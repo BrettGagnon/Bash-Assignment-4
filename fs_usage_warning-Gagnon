@@ -1,0 +1,71 @@
+#!/bin/bash
+#Brett Gagnon
+#Shell Scripting Assignment 4
+#3/24/2020
+
+capacity=60
+email=""
+flag=false
+
+df -k -t nfs -t ext4 -t ext2 | grep -vE '^Filesystem | none' | awk '{ print $1 " " $5  " " $6 }' | while read output
+do
+	#echo "$output"
+	percentage=$(echo "$output" | awk '{ print $2 }' | cut -f1 -d'%' )
+	partition=$(echo "$output" | awk '{ print $1 }' )
+	#MAKE ANOTHER VAR TO GET THE MOUNTED ON FIELD WITH AWK FROM THE DF COMMAND
+	partition2=$(echo "$output" | awk '{ print $3 }' ) 
+ 
+
+	#Make sure an email address is entereed, if not exit with error
+	case "$1" in
+	    	"")
+        	echo ERROR: No email addresses entered or -c specified
+		exit 1
+		;;
+
+	#Check for -c flag, if entered save value to capacity var	
+		-c)
+		shift
+        	capacity=$1
+		shift
+
+	#Create List for all email addresses entered	
+		for Arg1 in $@
+		do
+			P=$Arg1
+			NP="$NP $P"
+			flag=true
+		done
+		;;
+	#If no -c is specified
+		*)
+		if [ $flag = false ]
+		then
+        	for Arg1 in $@
+		do
+			P=$Arg1
+			NP="$NP $P"
+			flag=true
+		done
+		fi
+	esac
+
+	#If the file system is greater than or equal to the specified amount, send email to all email addresses entered
+	if [[ $percentage -ge 90 ]]
+		then
+		complete=$(df -a "$partition2")
+		mailx -s "Critical Warning: The Filesystem ${partition} is greater than or equal to 90% capacity" $NP<<END_OF_EMAIL
+$complete
+END_OF_EMAIL
+	fi
+
+	if [[ $percentage -ge $capacity ]] && [[ $percentage -lt 90 ]]
+		then
+		#Code below for some reason is saying the ce-srv-o2 filesystems dont exist (they do)...
+		#Made adjustments for functionality, using Mounted On path instead of filesystem
+		complete=$(df -a "$partition2")
+		mailx -s "Warning: The Filesystem ${partition} is above ${capacity} % used" $NP<<END_OF_EMAIL
+$complete
+END_OF_EMAIL
+	fi
+done
